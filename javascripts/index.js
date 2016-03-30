@@ -98,7 +98,7 @@ Lava.prototype.type = 'lava';
 function Coin(pos) {
     this.basePos = this.pos = pos.plus(new Vector(0.2, 0.1));
     this.size = new Vector(0.6, 0.6);
-    this.wobble = Math.random * Math.PI * 2;
+    this.wobble = Math.random() * Math.PI * 2;
 }
 
 Coin.prototype.type = 'coin';
@@ -333,8 +333,8 @@ Player.prototype.act = function(step, level, keys) {
     }
 
     if (level.status === 'lost') {
-        this.pos.y -= step;
-        this.size.y += step;
+        this.pos.y += step;
+        this.size.y -= step;
     }
 };
 
@@ -350,8 +350,93 @@ Level.prototype.playerTouched = function(type, actor) {
         if (!this.actors.some(function(actor) {
                     return actor.type === 'coin';
                 })) {
-            this.status = = 'won';
+            this.status = 'won';
             this.finishDelay = 1;
         }
     }
 };
+
+var arrowCodes = {
+    37: 'left',
+    38: 'up',
+    39: 'right'
+};
+
+function trackKeys(codes) {
+    var pressed = Object.create(null);
+
+    function handler(event) {
+        if (codes.hasOwnProperty(event.keyCode)) {
+            var down = event.type === 'keydown';
+
+            pressed[codes[event.keyCode]] = down;
+
+            event.preventDefault();
+        }
+    }
+
+    addEventListener('keydown', handler);
+    addEventListener('keyup', handler);
+
+    return pressed;
+}
+
+function runAnimation(frameFunc) {
+    var lastTime = null;
+
+    function frame(time) {
+        var stop = false;
+
+        if (lastTime !== null) {
+            var timeStep = Math.min(time - lastTime, 100) / 1000;
+
+            stop = frameFunc(timeStep) === false;
+        }
+
+        lastTime = time;
+
+        if (!stop) {
+            requestAnimationFrame(frame);
+        }
+    }
+
+    requestAnimationFrame(frame);
+}
+
+var arrows = trackKeys(arrowCodes);
+
+function runLevel(level, Display, andThen) {
+    var display = new Display(document.body, level);
+
+    runAnimation(function(step) {
+        level.animate(step, arrows);
+        display.drawFrame();
+
+        if (level.isFinished()) {
+            display.clear();
+
+            if (andThen) {
+                andThen(level.status);
+            }
+
+            return false;
+        }
+    });
+}
+
+function runGame(plans, Display) {
+
+    function startLevel(n) {
+        runLevel(new Level(plans[n]), Display, function(status) {
+            if (status === 'lost') {
+                startLevel(n);
+            } else if (n < plans.length - 1) {
+                startLevel(n + 1);
+            } else {
+                console.log('You win!');
+            }
+        });
+    }
+
+    startLevel(1);
+}
